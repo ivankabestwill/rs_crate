@@ -15,12 +15,10 @@ struct Info<T>{
     list: Vec<Box<T>>,
 }
 
-pub struct CacheControl<T,F>
-    where
-    F: FnOnce() -> Box<T>,
-{
+pub struct CacheControl<T>{
+
     info: Rc<RefCell<Info<T>>>,
-    f: NonNull<F>,
+    f: fn()->Box<T>,
 }
 
 fn info_init<T>(depth: usize) -> Info<T>{
@@ -30,14 +28,11 @@ fn info_init<T>(depth: usize) -> Info<T>{
     }
 }
 
-pub fn cache_init<T, F>(depth: usize, f: F) -> CacheControl<T, F>
-    where
-    F: FnOnce() -> Box<T>,
-{
-    let bf = Box::new(f);
+pub fn cache_init<T>(depth: usize, f: fn()->Box<T>) -> CacheControl<T>{
+
     CacheControl{
         info: Rc::new(RefCell::new(info_init(depth))),
-        f: Box::into_raw_non_null(bf),
+        f: f,
     }
 }
 
@@ -49,6 +44,8 @@ impl <T> Drop for Cache<T>{
                     self.info.borrow().depth > self.info.borrow().list.len(){
                     let box_value = unsafe { Box::from_raw(t.as_ptr()) };
                     self.info.borrow_mut().list.push(box_value);
+                }else{
+                    unsafe{Box::from_raw(t.as_ptr())}; // here for real free T
                 }
             },
             None => {},
@@ -65,7 +62,7 @@ impl <T> Cache<T>{
             None => {return None; },
         }
     }
-    
+
     pub fn get_ref_mut(&mut self) -> Option<&mut T>{
         match self.value{
             Some(ref mut t) => {return Some(unsafe{t.as_mut()});},
@@ -74,10 +71,7 @@ impl <T> Cache<T>{
     }
 }
 
-impl <T,F> CacheControl<T,F>
-    where
-    F: FnOnce() -> Box<T>,
-{
+impl <T> CacheControl<T>{
     pub fn reset_depth(&mut self, depth: usize){
         self.info.borrow_mut().depth = depth;
 
@@ -91,14 +85,21 @@ impl <T,F> CacheControl<T,F>
         }
     }
 
+    pub fn reset(&mut self){
+        // clean all cache tmp
+        loop {
+            match self.info.borrow_mut().list.pop() {
+                Some(_) => {},
+                None => { break; },
+            }
+        }
+    }
+
     pub fn get(&mut self) -> Cache<T>{
         let t = match self.info.borrow_mut().list.pop(){
             Some(t) => {t},
             None => {
-               let f = unsafe { Box::from_raw(self.f.as_ptr()) };
-                let t = f();
-                //self.f = unsafe {Box::into_raw_non_null(f)};
-                t
+                (self.f)()
             },
         };
 

@@ -32,6 +32,17 @@ struct ConfigNode{
     next: Option<ConfigType>,
 }
 
+impl Drop for ConfigNode{
+    fn drop(&mut self){
+        match self.list{
+            Some(ref t) => {unsafe{Box::from_raw(t.as_ptr())};},
+            None => {},
+        }
+
+        self.list = None;
+    }
+}
+
 impl ConfigNode{
     fn show(&self){
 
@@ -65,6 +76,19 @@ impl ConfigValue{
 
 pub struct ConfigPoint{
     list: Option<NonNull<ConfigNode>>,
+}
+
+impl Drop for ConfigPoint{
+    fn drop(&mut self){
+        match self.list{
+            Some(ref t) => {
+                unsafe{Box::from_raw(t.as_ptr())};
+            },
+            None => {},
+        }
+
+        self.list = None;
+    }
 }
 
 fn add_after_node_point(prelist: &mut ConfigNode, index: u8) -> Option<Rc<RefCell<ConfigPoint>>>{
