@@ -1,5 +1,6 @@
 #![feature(box_into_raw_non_null)]
 
+
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::ptr::NonNull;
@@ -461,23 +462,22 @@ fn from_index(index: u8) -> Option<char>{
 }
 
 fn get_index(s: u8) -> Option<u8>{
-    if (b'a'<=s && s<=b'z'){
+    if b'a'<=s && s<=b'z'{
         return Some(s-b'a');
-    }else if (b'A'<=s && s<=b'Z'){
+    }else if b'A'<=s && s<=b'Z'{
         return Some((s-b'A')  + 26);
-    }else if (b'0'<=s && s<=b'9'){
+    }else if b'0'<=s && s<=b'9'{
         return Some((s-b'0')  + 52);
-    }else if (s==b'.'){
+    }else if s==b'.'{
         return Some(SLOT_LEN - 3);
-    }else if (s==b'_'){
+    }else if s==b'_'{
         return Some(SLOT_LEN - 2);
-    }else if (s==b'-'){
+    }else if s==b'-'{
         return Some(SLOT_LEN - 1);
     }else{
         return None;
     }
 }
-
 
 fn new_config_value(value: &String) -> ConfigValue{
     ConfigValue{
