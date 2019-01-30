@@ -404,14 +404,14 @@ impl ConfigPoint{
 
         //println!("_put {:?}", name);
         if name.len() <= 0{
-            println!("_put err: name.len is <= 0");
+            //println!("_put err: name.len is <= 0");
             return false;
         }
 
         let index = match get_index(name[0]){
             Some(t) => {t},
             None =>{
-                println!("_put err: get_index {} err.", name[0]);
+                //println!("_put err: get_index {} err.", name[0]);
                 return false;
             },
         };
@@ -435,6 +435,11 @@ impl ConfigPoint{
     pub fn put(&mut self, name: &String, value: &String) -> bool{
         if !name.is_ascii(){
             println!("put err: name of String is not ascii.");
+            return false;
+        }
+
+        if name.len() <= 0{
+            println!("put err: name len must > 0");
             return false;
         }
 
@@ -475,6 +480,7 @@ fn get_index(s: u8) -> Option<u8>{
     }else if s==b'-'{
         return Some(SLOT_LEN - 1);
     }else{
+        println!("only accept azAZ09._-");
         return None;
     }
 }
