@@ -7,16 +7,27 @@ use std::ops::Drop;
 
 pub struct Cache<T>{
     value: Option<NonNull<T>>,
-    list: Rc<RefCell<Vec<Box<T>>>>,
+    info: Rc<RefCell<Info<T>>>,
+}
+
+struct Info<T>{
+    depth: usize,
+    list: Vec<Box<T>>,
 }
 
 pub struct CacheControl<T,F>
     where
     F: FnOnce() -> Box<T>,
 {
-    depth: usize,
-    list: Rc<RefCell<Vec<Box<T>>>>,
+    info: Rc<RefCell<Info<T>>>,
     f: NonNull<F>,
+}
+
+fn info_init<T>(depth: usize) -> Info<T>{
+    Info{
+        depth: depth,
+        list: Vec::new(),
+    }
 }
 
 pub fn cache_init<T, F>(depth: usize, f: F) -> CacheControl<T, F>
@@ -25,8 +36,7 @@ pub fn cache_init<T, F>(depth: usize, f: F) -> CacheControl<T, F>
 {
     let bf = Box::new(f);
     CacheControl{
-        depth: depth,
-        list: Rc::new(RefCell::new(Vec::new())),
+        info: Rc::new(RefCell::new(info_init(depth))),
         f: Box::into_raw_non_null(bf),
     }
 }
@@ -35,8 +45,11 @@ impl <T> Drop for Cache<T>{
     fn drop(&mut self){
         match self.value{
             Some(ref t) => {
-                let box_value = unsafe { Box::from_raw(t.as_ptr()) };
-                self.list.borrow_mut().push(box_value);
+                if  self.info.borrow().depth == 0 ||
+                    self.info.borrow().depth > self.info.borrow().list.len(){
+                    let box_value = unsafe { Box::from_raw(t.as_ptr()) };
+                    self.info.borrow_mut().list.push(box_value);
+                }
             },
             None => {},
         }
@@ -52,14 +65,34 @@ impl <T> Cache<T>{
             None => {return None; },
         }
     }
+    
+    pub fn get_ref_mut(&mut self) -> Option<&mut T>{
+        match self.value{
+            Some(ref mut t) => {return Some(unsafe{t.as_mut()});},
+            None => {return None;},
+        }
+    }
 }
 
 impl <T,F> CacheControl<T,F>
     where
     F: FnOnce() -> Box<T>,
 {
+    pub fn reset_depth(&mut self, depth: usize){
+        self.info.borrow_mut().depth = depth;
+
+        if depth > 0{
+            while depth < self.info.borrow().list.len(){
+                match self.info.borrow_mut().list.pop(){
+                    Some(_) => {},
+                    None => {break;},
+                }
+            }
+        }
+    }
+
     pub fn get(&mut self) -> Cache<T>{
-        let t = match self.list.borrow_mut().pop(){
+        let t = match self.info.borrow_mut().list.pop(){
             Some(t) => {t},
             None => {
                let f = unsafe { Box::from_raw(self.f.as_ptr()) };
@@ -70,7 +103,7 @@ impl <T,F> CacheControl<T,F>
         };
 
         return Cache{
-            list: Rc::clone(&self.list),
+            info: Rc::clone(&self.info),
             value: Some(Box::into_raw_non_null(t)),
         };
     }
