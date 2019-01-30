@@ -1,0 +1,11 @@
+[package]
+name = "rlib_config"
+version = "0.1.0"
+authors = ["[ivankabestwill] <[278467214@qq.com]>"]
+edition = "2018"
+
+[dependencies]
+
+[lib]
+name="rlib_config"
+crate-type=["rlib"]
