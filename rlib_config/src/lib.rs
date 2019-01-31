@@ -187,7 +187,45 @@ impl ConfigPoint{
         }
     }
 
-    pub fn get_point(&self, _name: &String) -> Option<Rc<RefCell<ConfigPoint>>>{
+    pub fn get_point(&self, name: &String) -> Option<Rc<RefCell<ConfigPoint>>>{
+        if !name.is_ascii(){
+            return None;
+        }
+
+        let mut name_bytes = name.as_bytes();
+
+        if name_bytes.len() <= 0{
+            return None;
+        }
+
+        let index = match get_index(name_bytes[0]){
+            Some(t) => {t},
+            None => {return None;},
+        };
+
+        if name_bytes.len() == 1{
+            return self.get_point_next(index);
+        }
+
+        let mut list = self.get_point_next(index);
+        while let Some(node) = list{
+            if name_bytes.len() > 1{
+                name_bytes = &name_bytes[1..];
+            }else{
+                return None;
+            }
+
+            let index = match get_index(name_bytes[0]){
+                Some(t) => {t},
+                None => {return None;},
+            };
+
+            if name_bytes.len() == 1{
+                return node.borrow().get_point_next(index);
+            }else{
+                list = node.borrow().get_point_next(index);
+            }
+        }
 
         return None;
     }
@@ -392,6 +430,10 @@ impl ConfigPoint{
 
         let mut name_bytes = name.as_bytes();
 
+        if name_bytes.len() <= 0{
+            return None;
+        }
+
         if name_bytes.len() == 1{
             return self.get_value(name_bytes[0]);
         }
@@ -404,7 +446,12 @@ impl ConfigPoint{
         let mut list_config_point = self.get_point_next(index as u8);
 
         while let Some(cp) = list_config_point{
-            name_bytes = &name_bytes[1..];
+
+            if name_bytes.len() > 1{
+                name_bytes = &name_bytes[1..];
+            }else{
+                return None;
+            }
 
             if name_bytes.len() == 1{
                 let index = match get_index(name_bytes[0]){
