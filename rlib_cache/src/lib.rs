@@ -11,20 +11,37 @@ pub struct Cache<T>{
 }
 
 struct Info<T>{
+    stat: Stat,
     depth: usize,
     list: Vec<Box<T>>,
 }
 
-pub struct CacheControl<T>{
+struct Stat{
+    alloc_num: usize,
+    reuse_num: usize,
+    free_num: usize,
+    recyle_num: usize,
+}
 
+pub struct CacheControl<T>{
     info: Rc<RefCell<Info<T>>>,
     f: fn()->Box<T>,
 }
 
 fn info_init<T>(depth: usize) -> Info<T>{
     Info{
+        stat: stat_init(),
         depth: depth,
         list: Vec::new(),
+    }
+}
+
+fn stat_init() -> Stat{
+    Stat{
+        alloc_num: 0,
+        reuse_num: 0,
+        free_num: 0,
+        recyle_num: 0,
     }
 }
 
@@ -44,7 +61,9 @@ impl <T> Drop for Cache<T>{
                     self.info.borrow().depth > self.info.borrow().list.len(){
                     let box_value = unsafe { Box::from_raw(t.as_ptr()) };
                     self.info.borrow_mut().list.push(box_value);
+                    self.info.borrow_mut().stat.recyle_num += 1;
                 }else{
+                    self.info.borrow_mut().stat.free_num += 1;
                     unsafe{Box::from_raw(t.as_ptr())}; // here for real free T
                 }
             },
@@ -97,8 +116,12 @@ impl <T> CacheControl<T>{
 
     pub fn get(&mut self) -> Cache<T>{
         let t = match self.info.borrow_mut().list.pop(){
-            Some(t) => {t},
+            Some(t) => {
+                self.info.borrow_mut().stat.reuse_num += 1;
+                t
+            },
             None => {
+                self.info.borrow_mut().stat.alloc_num += 1;
                 (self.f)()
             },
         };
@@ -109,75 +132,3 @@ impl <T> CacheControl<T>{
         };
     }
 }
-
-/*
-use std::ops::Drop;
-use std::ptr::NonNull;
-use std::boxed::Box;
-use std::rc::Rc;
-use std::cell::RefCell;
-
-pub struct Cache<T>{
-    data: Option<NonNull<T>>,
-    cc: Rc<RefCell<CacheControl<T>>>,
-}
-
-impl <T> Drop for Cache<T>{
-    fn drop(&mut self){
-        let tmp_box = match self.data{
-            Some(ref t) => {
-                unsafe {Box::from_raw(t.as_ptr())}
-            },
-            None => {return;},
-        };
-        self.cc.borrow_mut().put(tmp_box);
-        self.data = None;
-    }
-}
-
-pub struct CacheControl<T>{
-    depth: usize,
-    caches: Vec<Box<T>>,
-}
-
-impl <T>CacheControl<T>{
-    fn reset_depth(&mut self, depth: usize){
-        self.depth = depth;
-    }
-
-    fn put(&mut self, t: Box<T>){
-        if self.caches.len() < self.depth{
-            //println!("{} {}", self.caches.len(), self.depth);
-            self.caches.push(t);
-        }
-    }
-
-    fn get(&mut self) -> Option<Box<T>>{
-        return self.caches.pop();
-    }
-
-}
-pub fn init_cache<T>(depth: usize) -> Rc<RefCell<CacheControl<T>>>{
-    let cc = CacheControl{
-        depth: depth,
-        caches: Vec::new(),
-    };
-
-    Rc::new(RefCell::new(cc))
-}
-
-pub fn get_cache<T, F>(cc: &Rc<RefCell<CacheControl<T>>>, f: F) -> Cache<T>
-where
-    F: FnOnce() -> T,
-{
-    let box_tmp = match cc.borrow_mut().get(){
-        Some(t) => {t},
-        None => {Box::new(f())},
-    };
-
-    Cache{
-        data: Some(Box::into_raw_non_null(box_tmp)),
-        cc: Rc::clone(cc),
-    }
-}
-*/
